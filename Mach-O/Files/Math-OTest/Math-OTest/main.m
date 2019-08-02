@@ -1,17 +1,13 @@
-#import <Foundation/Foundation.h>
-#import <mach-o/dyld.h>
-#ifdef __LP64__
-typedef struct mach_header_64 mach_header_p;
-#else
-typedef struct mach_header mach_header_p;
-#endif
+#include "mheader.h"
 int main(int argc, char **argv) {
-    int count = _dyld_image_count();
-    for (int i = 0; i < count; i++) {
-        const char *name = _dyld_get_image_name(i);
-        printf("\t| %s: \n", name);
-        const mach_header_p *header = (const mach_header_p *)_dyld_get_image_header(i);
-        printf("\t| magic: %02x, \t| cputype: %d, \t| filetype: %d \n", header->magic, header->filetype, header->filetype);
+//    mheader("./main.o", true);
+    uint32_t count = _dyld_image_count();
+    for (uint32_t i = 0; i < count; i++) {
+        const char* image = _dyld_get_image_name(i);
+        const struct mach_header *header = _dyld_get_image_header(i);
+        printf("%s Header: \n", image);
+        // 开始打印mach_headerd中的内容
+        printf("\t| magic: %02x, \n\t| cputype: 0x%0x, \n\t| cpusubtype: %u, \n\t| filetype: %d, \n\t| ncmds: %d \n\t| sizeofcmds: %d  \n\n",header->magic, header->cputype, header->cpusubtype, header->filetype, header->ncmds, header->sizeofcmds);
     }
     return 1;
 }

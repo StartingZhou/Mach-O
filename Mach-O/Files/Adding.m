@@ -1,5 +1,5 @@
 #import "Adding.h"
-@implementation
+@implementation Adding
 - (int) addX:(int)x Y:(int) y {
     return x + y;
 }
