@@ -199,7 +199,7 @@ int main(int argc, char **argv) {
 
 2. 通过`<mach-o/dyld.h>`提供的`extern const struct mach_header*   _dyld_get_image_header(uint32_t image_index)`方法可以根据image_index获取header信息，image_index为加载进内存映射的索引，在Command Line Tool的项目中0为当前执行程序的索引。在iOS系统中，索引1为程序自身，索引0代表的是动态链接器。
 
-> 这里的Image不是表示图片，image代表的是一种映射关系，我们打包构建的可执行程序是放在磁盘上的，当程序被加载时，会被映射进内存中，Mach-O文件会按照Page进行映射，文章开始时提到过，在真正执行程序前，还需要加载与程序相关的动态链接库，这些动态链接库如果已经映射到内存，那么只需要对相关符号进行地址绑定即可，否则需要将动态库的内容映射到内存中，dyld提供的一个注册回调函数的方法`_dyld_register_func_for_add_image`，当dyld每次加载映射文件时，会调用其回调函数，我们可以通过`_dyld_image_count`获取当前进程空间的映射文件的数量。
+> 这里的Image不是表示图片，image代表的是一种映射关系，我们打包构建的可执行程序是放在磁盘上的，当程序被加载时，会被映射进内存中，Mach-O文件会按照Page进行映射，文章开始时提到过，在真正执行程序前，还需要加载与程序相关的动态链接库，这些动态链接库如果已经映射到内存，那么只需要对相关符号进行地址绑定即可，否则需要将动态库的内容映射到内存中，dyld提供的一个注册回调函数的方法`_dyld_register_func_for_add_image`，当dyld每次加载映射文件时，会调用其回调函数，我们可以通过`_dyld_image_count`获取当前进程空间的所映射文件的数量。
 
 新建一个控制台应用，语言选择Objective-c，将下面的代码拷贝到main函数中，并且引入`<mach-o/dyld.h>`系统头文件。
 ```c
@@ -299,7 +299,7 @@ xcrun clang -E main.m > main.e
 @end
 ...
 ```
-可以看到我们的`Adding.h`文件的内容出现在了预编译的输出文件中。类似这种函数（或者变量），虽然我们引用了，但是定义却在别处，本文件却找不到，被称之为未定义的符号（UNDEFINED），现在看看我们的`main.o`文件符号表有什么内容，方法如下：
+可以看到我们的`Adding.h`文件的内容出现在了预处理的输出文件中。类似这种类、函数或者变量等，虽然我们引用了，但是定义却在别处，本文件却找不到，被称之为未定义的符号（UNDEFINED），现在看看我们的`main.o`文件符号表有什么内容，方法如下：
 ```
 nm -m main.o
 ```
@@ -307,7 +307,7 @@ nm -m main.o
 
 ![MachOSymtab](./Images/MachOSymtab.jpg "Mach-O Symtab")
 
-可以看到，除了`main`方法外，其它的方法或者引用都是外部未定义的符号，我们创建的`Adding`类也在符号表中（OC与C++和C中的符号表处理方法不一样，OC只有当明确使用另一个文件中的类的对象时例如[[Adding alloc] init]时才会出现在符号表中），那么静态链接器根据什么信息在链接阶段处理各个目标文件并将符号绑定到正确的地址呢？答案就是`Relocations`信息。前面说过，Mach-O文件里包含Header、Segment、Section信息，`Relocation`信息位于Section中（Section的结构后面会展开），Section的结构体定义了重定位符号表相对于文件位置的偏移量`reloff`和重定义符号的数量`nreloc`，重定位信息使用`relocation_info`表示，静态链接器会根据`r_address`定位到该符号所使用的原地址，然后进行绑定：
+可以看到，除了`main`函数外，其它的方法或者引用都是外部未定义的符号，我们创建的`Adding`类也在符号表中（OC与C++和C中的符号表处理方法不一样，OC只有当明确使用另一个文件中的类的对象时例如[[Adding alloc] init]时才会出现在符号表中），那么静态链接器根据什么信息在链接阶段处理各个目标文件并将符号绑定到正确的地址呢？答案就是`Relocations`信息。前面说过，Mach-O文件里包含Header、Segment、Section信息，`Relocation`信息位于Section中（Section的结构后面会展开），Section的结构体定义了重定位符号表相对于文件位置的偏移量`reloff`和重定义符号的数量`nreloc`，重定位信息使用`relocation_info`表示，静态链接器会根据`r_address`定位到该符号所使用的原地址，然后进行绑定：
 ```c
 struct relocation_info 
 {
