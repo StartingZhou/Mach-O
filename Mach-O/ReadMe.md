@@ -246,4 +246,85 @@ for (uint32_t i = 0; i < count; i++) {
 
 ![MachOSegment](./Images/MachOSegment.png "Mach-O Segment")
 
+当我们的目标文件与其它Mach-O文件进行连接时，会将对应的Section放到对应的Segment中，最终形成多个Segment，每个Segment又存在多个Section。
+
+重新改写我们的 `main.m`文件，并且新增`Adding.h`和`Adding.m`文件。
+```objc
+// main.m
+#import <Foundation/Foundation.h>
+#import "Adding.h"
+int main(int argc, char **argv) {
+    @autoreleasepool {
+        NSLog(@"Hello World!");
+        Adding *ad = [[Adding alloc] init];
+        [ad addX:10 Y:10];
+        return 1;
+    }
+}
+
+// Adding.h
+#import <Foundation/Foundation.h>
+@interface Adding: NSObject
+- (int) addX:(int)x Y:(int) y;
+@end
+
+// Adding.m
+
+#import "Adding.h"
+@implementation Adding
+- (int) addX:(int)x Y:(int) y {
+    return x + y;
+}
+@end
+```
+通过如下方式编译：
+```
+xcrun clang -c main.m 
+xcurn clang -c Adding.m
+xcrun clang main.o Adding.o -framework Foundation
+```
+这是会在执行目录下生成`main.o Adding.o a.out`文件，`main.o`和`Adding.o`是目标文件，用于最后的链接，从而生成`a.out`最终的可执行文件。下面先从新生成的`main.o`文件简单聊聊静态链接。
+
+我们通常写代码的时候，需要将不同的功能分散到不同的文件中，例如上面的例子，`main.m`用于输出信息，`Adding.m`提供了两个数相加的功能，这么做一方面利于文件的管理（功能的模块化），一方面利于后期的维护（功能变更时只需要修改对应功能的代码文件），试想一下如果把所有的代码都写到一个文件里，如果多人协作开发的话，一定会涉及到修改和维护某些函数，那么所有开发的人都会修改这一个文件，结果是不可想象的，如果把功能分散到不同的代码文件中，那么负责某一功能的程序员就可以一直维护该文件，其他人需要此功能时，就可以直接导入该文件，效率更高，更利于维护和更新。
+
+既然功能被分散到不同的文件中，例如我们的代码`main.m`中需要使用`Adding.m`中的`addX:Y`函数，在编译时，`main.m`并不知道`addX:Y`的函数的具体实现是什么，编译器的作用只是将输入的代码文件生成一个中间状态的目标文件，之后再交给静态链接器，静态链接器会为我们生成最终的可执行代码文件。其实在编译初期会经过预处理这个过程，预处理的作用就是将我们`#include`、`#import`等引入的头文件信息和`#define 等`做展开，通过以下代码我们看看，预处理之后的文件的内容是什么：
+```
+xcrun clang -E main.m > main.e
+```
+在输出的`main.e`文件的末尾，可以看到如下代码：
+```objc
+...
+@interface Adding: NSObject
+- (int) addX:(int)x Y:(int) y;
+@end
+...
+```
+可以看到我们的`Adding.h`文件的内容出现在了预编译的输出文件中。类似这种函数（或者变量），虽然我们引用了，但是定义却在别处，本文件却找不到，被称之为未定义的符号（UNDEFINED），现在看看我们的`main.o`文件符号表有什么内容，方法如下：
+```
+nm -m main.o
+```
+结果如下：
+
+![MachOSymtab](./Images/MachOSymtab.jpg "Mach-O Symtab")
+
+可以看到，除了`main`方法外，其它的方法或者引用都是外部未定义的符号，我们创建的`Adding`类也在符号表中（OC与C++和C中的符号表处理方法不一样，OC只有当明确使用另一个文件中的类的对象时例如[[Adding alloc] init]时才会出现在符号表中），那么静态链接器根据什么信息在链接阶段处理各个目标文件并将符号绑定到正确的地址呢？答案就是`Relocations`信息。前面说过，Mach-O文件里包含Header、Segment、Section信息，`Relocation`信息位于Section中（Section的结构后面会展开），Section的结构体定义了重定位符号表相对于文件位置的偏移量`reloff`和重定义符号的数量`nreloc`，重定位信息使用`relocation_info`表示，静态链接器会根据`r_address`定位到该符号所使用的原地址，然后进行绑定：
+```c
+struct relocation_info 
+{
+   long r_address;  // 根据Mach-O文件的类型有所不同
+                    // 如果是类似于main.o的目标文件，该值是相对应的Section的偏移量
+                    // 如果是可执行文件，该值是与第一个Segment的偏移量
+   unsigned int r_symbolnum:24,
+   r_pcrel:1,       // 是否为 PC relatice addressing
+   r_length:2,
+   r_extern:1,      // 是否为外部符号，
+                    // 外部符号r_symbolnum的值是符号表的索引
+                    // 非外部符号r_symbolnum代表的是Section的索引，从1开始
+   r_type:4;        // 类型信息
+};
+```
+我们看一下我们的`main.o`文件中重定位的信息：
+```
+otool -rv main.o
+```
 

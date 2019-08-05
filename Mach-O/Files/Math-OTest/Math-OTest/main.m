@@ -1,4 +1,5 @@
 #include "mheader.h"
+#include <mach-o/reloc.h>
 int main(int argc, char **argv) {
 //    mheader("./main.o", true);
     uint32_t count = _dyld_image_count();
