@@ -27,6 +27,7 @@ mach_header_p mheader(const char * path, bool verbose)
         }
         position += read_no;
     }
+    close(mach_fd);
     mach_header_p *header = (mach_header_p *)buf;
     if (verbose) {
         // 指向buf，并且将类型转换为mach_header的类型

@@ -7,12 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		8B1026B622F9A5EC00598E05 /* msegments.c in Sources */ = {isa = PBXBuildFile; fileRef = 8B1026B522F9A5EC00598E05 /* msegments.c */; };
 		8B64742122F31EA000233C9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 8B64742022F31EA000233C9A /* main.m */; };
 		8B64742322F3BFC400233C9A /* DyldImageHeader.m in Sources */ = {isa = PBXBuildFile; fileRef = 8B64742222F3BFC400233C9A /* DyldImageHeader.m */; };
 		8B64743122F3E94700233C9A /* mheader.c in Sources */ = {isa = PBXBuildFile; fileRef = 8B64743022F3E94700233C9A /* mheader.c */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8B1026B422F9A5EC00598E05 /* msegments.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = msegments.h; sourceTree = "<group>"; };
+		8B1026B522F9A5EC00598E05 /* msegments.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = msegments.c; sourceTree = "<group>"; };
 		8B64741622F31E8000233C9A /* Math-OTest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Math-OTest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B64742022F31EA000233C9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		8B64742222F3BFC400233C9A /* DyldImageHeader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DyldImageHeader.m; sourceTree = "<group>"; };
@@ -55,6 +58,8 @@
 				8B64742022F31EA000233C9A /* main.m */,
 				8B64742F22F3E94700233C9A /* mheader.h */,
 				8B64743022F3E94700233C9A /* mheader.c */,
+				8B1026B422F9A5EC00598E05 /* msegments.h */,
+				8B1026B522F9A5EC00598E05 /* msegments.c */,
 				8B64742222F3BFC400233C9A /* DyldImageHeader.m */,
 			);
 			path = "Math-OTest";
@@ -139,6 +144,7 @@
 				8B64742122F31EA000233C9A /* main.m in Sources */,
 				8B64742322F3BFC400233C9A /* DyldImageHeader.m in Sources */,
 				8B64743122F3E94700233C9A /* mheader.c in Sources */,
+				8B1026B622F9A5EC00598E05 /* msegments.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

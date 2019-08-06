@@ -1,8 +1,8 @@
 # Mach-O 文件浅析
-&nbsp;&nbsp;&nbsp;&nbsp;Mac和iOS系统的可执行文件被称作是Mach-O格式的文件，一般叫做Mach-O文件，该文件描述了目标文件或可执行程序文件的信息以及各个段的信息、机器码和符号表、重定向信息等，程序在启动前，Unix系统会通过 `fork` 创建一个进程，之后通过 `exec` 调用 `dyld`，`dyld`将可执行文件映射进内存，根据可执行文件的信息加载相应的动态库并绑定地址、调用C++的静态构造函数和OC的 `+load` 方法等，最后执行程序文件的入口函数 `main`，本篇文章只对Mach-O文件的结构做简要分析。
+&emsp;&emsp;Mac和iOS系统的可执行文件被称作是Mach-O格式的文件，一般叫做Mach-O文件，该文件描述了目标文件或可执行程序文件的信息以及各个段的信息、机器码和符号表、重定向信息等，程序在启动前，Unix系统会通过 `fork` 创建一个进程，之后通过 `exec` 调用 `dyld`，`dyld`将可执行文件映射进内存，根据可执行文件的信息加载相应的动态库并绑定地址、调用C++的静态构造函数和OC的 `+load` 方法等，最后执行程序文件的入口函数 `main`，本篇文章只对Mach-O文件的结构做简要分析。
 
 ## 生成 Mach-O 文件
-首先变出一个 Mach-O 文件，最简单的方法就是通过Xcode创建一个控制台项目，根据所选择使用的编程语言默认会带一个main.c或者main.m的文件，但是为了让事情看起来麻烦一点，通过创建一个 OC 文件然后使用 `clang` 编译成 Mach-O文件可能会更有意思一些，我们直接创建一个文件并命名为`main.m`，其中的代码如下：
+&emsp;&emsp;首先变出一个 Mach-O 文件，最简单的方法就是通过Xcode创建一个控制台项目，根据所选择使用的编程语言默认会带一个main.c或者main.m的文件，但是为了让事情看起来麻烦一点，通过创建一个 OC 文件然后使用 `clang` 编译成 Mach-O文件可能会更有意思一些，我们直接创建一个文件并命名为`main.m`，其中的代码如下：
 ```objc
 #import <Foundation/Foundation.h>
 int main(int argc, char **argv) {
@@ -15,7 +15,7 @@ int main(int argc, char **argv) {
 clang -c main.m
 # -E 预处理，-S 汇编文件 -c 生成目标文件
 ```
-之后该目录下会生成 `main.o`的文件。这是我们的第一个 Mach-O文件，我们平时在Xcode中进行 `build` 或者 `run`时，Xcode会采用相似的方式对每一个`.c、.m、.swift`文件生成目标文件(object file)，只是 Xcode在调用 clang命令时会根据`build-setting`设置项里的参数进行编译。让我们使用file命令查看该文件的类型和CPU架构：
+&emsp;&emsp;之后该目录下会生成 `main.o`的文件。这是我们的第一个 Mach-O文件，我们平时在Xcode中进行 `build` 或者 `run`时，Xcode会采用相似的方式对每一个`.c、.m、.swift`文件生成目标文件(object file)，只是 Xcode在调用 clang命令时会根据`build-setting`设置项里的参数进行编译。让我们使用file命令查看该文件的类型和CPU架构：
 ```
 file main.o
 # main.o: Mach-O 64-bit object x86_64
@@ -23,11 +23,11 @@ file main.o
 结果根据使用的机器的CUP架构可能会不同，我的是64位的 Mach-O文件。
 
 ## 查看 Mach-O 文件
-查看 Mach-O文件可以使用`otool`命令或者使用[MachOView工具](https://github.com/gdbinit/MachOView)，下图为在MachOView中打开我们上一步生成的Mach-O文件
+&emsp;&emsp;查看 Mach-O文件可以使用`otool`命令或者使用[MachOView工具](https://github.com/gdbinit/MachOView)，下图为在MachOView中打开我们上一步生成的Mach-O文件
 
 ![MachOView](./Images/MachOView.png "MachOView")
 
-可以看到，Mach-O文件包含Header信息（Mach64 Header）、加载命令的信息（LoadCommands）、和节信息（Section64），由于我们生成的是目标文件（没有进行最后的链接阶段），所以会有重定位信息（Relocations），以及最后的符号表信息。
+&emsp;&emsp;可以看到，Mach-O文件包含Header信息（Mach64 Header）、加载命令的信息（LoadCommands）、和节信息（Section64），由于我们生成的是目标文件（没有进行最后的链接阶段），所以会有重定位信息（Relocations），以及最后的符号表信息。
 可以使用使用`otool`命令查看Mach-O文件。
 ```
 otool -lv main.o
@@ -39,7 +39,7 @@ otool -lv main.o
 可以看到，使用otool所展示的内容与使用MachOView的内容一致。
 
 ### 1. Mach header
-每个Mach-O文件都会有Header信息（Fat文件内部包含的所有不同架构的Mach-O文件都有Mach-O的Header信息），先来看一下头部信息里有什么。
+&emsp;&emsp;每个Mach-O文件都会有Header信息（Fat文件内部包含的所有不同架构的Mach-O文件都有Mach-O的Header信息），先来看一下头部信息里有什么。
 ```shell
 otool -hv main.o
 # -h 获取Mach-O文件的头部信息
@@ -48,7 +48,7 @@ otool -hv main.o
 
 ![Header](./Images/MachOHeader.png "Mach-O Header")
 
-Mach-header对应的结构体定义位于`<mach-o/loader.h>`，有对应的64位版本，我把这两个定义的结构体拷贝出来：
+&emsp;&emsp;Mach-header对应的结构体定义位于`<mach-o/loader.h>`，有对应的64位版本，我把这两个定义的结构体拷贝出来：
 
 ```c
 struct mach_header {
@@ -112,15 +112,15 @@ struct mach_header_64 {
     0000 0000 0000 0000 0000 0000 0000 0000
     ...
 ```
-可以看到第一个字节的内容为0xfeedafacf对应的是`MH_MAGIC_64`，第二个字节内容为0x01000007对应的是`(CPU_TYPE_X86 | CPU_ARCH_ABI64) = 0000 0001 0000 0000 0000 0000 0000 | 0000 0111`，第三个字节为0x00000003对应的是
+&emsp;&emsp;可以看到第一个字节的内容为0xfeedafacf对应的是`MH_MAGIC_64`，第二个字节内容为0x01000007对应的是`(CPU_TYPE_X86 | CPU_ARCH_ABI64) = 0000 0001 0000 0000 0000 0000 0000 | 0000 0111`，第三个字节为0x00000003对应的是
 ```
 #define CPU_SUBTYPE_X86_ALL        ((cpu_subtype_t)3)
 #define CPU_SUBTYPE_X86_64_ALL     ((cpu_subtype_t)3)
 ```
 
-第四个字节为0x00000001对应的是`MH_OBJECT`表示的是一个目标文件，`ncmds`对应着0x00000004，`sizeofcmds`为0x000002a8( = 680)
+&emsp;&emsp;第四个字节为0x00000001对应的是`MH_OBJECT`表示的是一个目标文件，`ncmds`对应着0x00000004，`sizeofcmds`为0x000002a8( = 680)
 
-接下来我们用程序实现获取Mach-O的header信息，首先创建一个控制台项目File->New->Project->macOS->Command Line Tool，Language选择Objective-c，main.m中的代码如下(注意需要将我们上一步生成的main.o文件拷贝到product的目录下)：
+&emsp;&emsp;接下来我们用程序实现获取Mach-O的header信息，首先创建一个控制台项目File->New->Project->macOS->Command Line Tool，Language选择Objective-c，main.m中的代码如下(注意需要将我们上一步生成的main.o文件拷贝到product的目录下)：
 
 ```c
 #import <mach-o/dyld.h>
@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
 ！！！注意整形是小端法表示
 */
 ```
-程序读取了main.o目标文件的sizeof(mach_header_p)个字节，然后通过mach_header/mach_header_64获取里面的信息。
+&emsp;&emsp;程序读取了main.o目标文件的sizeof(mach_header_p)个字节，然后通过mach_header/mach_header_64获取里面的信息。
 
 
 > 以上的方式比较灵活，可以用于分析任意的Mach-O文件，但有时后需要分析程序本身的Mach-O信息，在`<mach-o/dyld.h>`中提供了相关方法。
@@ -201,7 +201,7 @@ int main(int argc, char **argv) {
 
 > 这里的Image不是表示图片，image代表的是一种映射关系，我们打包构建的可执行程序是放在磁盘上的，当程序被加载时，会被映射进内存中，Mach-O文件会按照Page进行映射，文章开始时提到过，在真正执行程序前，还需要加载与程序相关的动态链接库，这些动态链接库如果已经映射到内存，那么只需要对相关符号进行地址绑定即可，否则需要将动态库的内容映射到内存中，dyld提供的一个注册回调函数的方法`_dyld_register_func_for_add_image`，当dyld每次加载映射文件时，会调用其回调函数，我们可以通过`_dyld_image_count`获取当前进程空间的所映射文件的数量。
 
-新建一个控制台应用，语言选择Objective-c，将下面的代码拷贝到main函数中，并且引入`<mach-o/dyld.h>`系统头文件。
+&emsp;&emsp;新建一个控制台应用，语言选择Objective-c，将下面的代码拷贝到main函数中，并且引入`<mach-o/dyld.h>`系统头文件。
 ```c
 uint32_t count = _dyld_image_count();
 for (uint32_t i = 0; i < count; i++) {
@@ -242,7 +242,7 @@ for (uint32_t i = 0; i < count; i++) {
 上面的程序打印出所有加载的动态库和我们程序自己的Mach-O Header信息。里面的信息可能会因为操作系统的版本和所使用CPU架构有所不同。
 
 ### 2. Load command
-接下来我们来看看复杂的Load Command部分，Load command 里面包括了Segment，每个Segment包含了很多的Section。每个Segment和Section都有对应的名字，其中Segment的名字为两条下划线和大写字母(__TEXT)，Section的名字为两条下划线和小写字母(__text)，当`dyld`加载程序时，会将Segment部分映射进虚拟内存，所以Segments是按照虚拟内存页进行对齐的。我们先来看下`main.o`文件的Load Commands，`main.o`只是一个目标文件，还没有进行静态链接，文件的Load Commands比较简单，目标文件只有一个Segment，里面包含了所有的Section。
+&emsp;&emsp;接下来我们来看看复杂的Load Command部分，Load command 里面包括了Segment，每个Segment包含了很多的Section。每个Segment和Section都有对应的名字，其中Segment的名字为两条下划线和大写字母(__TEXT)，Section的名字为两条下划线和小写字母(__text)，当`dyld`加载程序时，会将Segment部分映射进虚拟内存，所以Segments是按照虚拟内存页进行对齐的。我们先来看下`main.o`文件的Load Commands，`main.o`只是一个目标文件，还没有进行静态链接，文件的Load Commands比较简单，目标文件只有一个Segment，里面包含了所有的Section。
 
 ![MachOSegment](./Images/MachOSegment.png "Mach-O Segment")
 
@@ -357,6 +357,73 @@ otool -tVj main.o
 ![Mach-O-Disassemble](./Images/MachODisa.png "Disassemble")
 
 最左侧的一列代表的是相对地址，第二列表示汇编代码的机器码，最后就是汇编代码。先看一下最左侧位于`0000000000000030`处的汇编代码`movq 0x91(%rip), %rsi`，汇编中通常rip寄存器表示的是即将执行下一条指令的地址，0x91(%rip)表示的是`0x91 + %rip = 0x91 + 0x37 = 0xc8`，这是基于PC的相对寻址技术（`relocation_info r_pcrel = 1`），计算结果是一个指针，地址为`0xc8`就是我们上一步获取`(__DATA __objc_classrefs)`Section中第一个信息的地址。
-从上面的分析可以简单的猜测出，静态链接器其实是根据重定位符号表文件的信息，去修改对应的Section中的对应地址处的值（例如我们的`__DATA __objc_classrefs: 00000000000000c8	00 00 00 00 00 00 00 00 `）对，就是后面那一串0表示的值。当然关于静态链接器本身是十分复杂的，我们只是挑了一个比较简单的来进行讲解，详细可以查看`man ld`的相关文档。
+从上面的分析可以简单的猜测出，静态链接器其实是根据重定位符号表的信息，去修改对应的Section中的对应地址处的值（例如我们的`__DATA __objc_classrefs: 00000000000000c8	00 00 00 00 00 00 00 00 `）对，就是后面那一串0表示的值。当然关于静态链接器本身是十分复杂的，我们只是挑了一个比较简单的来进行讲解，详细可以查看`man ld`的相关文档。
 
 目前为止我们只是分析了`main.o`目标文件，程序的可执行文件就是通过很多个目标文件链接起来生成的最终的可执行程序文件。接下来再看看这个可执行的程序文件`a.out`。
+
+### Segments
+
+&emsp;&emsp;由于需要在程序运行时动态调试程序，所以我们需要使用`lldb`中的几个简单的指令，为了方便在`lldb`调试，在`main.m`文件中添加如下代码：
+```objc
+#import <mach-o/dyld.h>
+#import <mach-o/loader.h>
+
+struct mach_header_64 *mh_64;
+struct mach_header *mh;
+struct load_command *lc;
+struct segment_command *scmd;
+struct segment_command_64 *scmd_64;
+struct section *sc;
+struct section_64 *sc_64;
+```
+重新编译我们的main.m和Adding.m文件，并输出调试符号信息表：
+```
+# -g 附带调试信息，会生成a.out.dSYM文件，该文件用于符号化我们的二进制文件
+clang -g -framework Foundation main.m Adding.m
+```
+然后在Terminal运行下面的命令：
+```bash
+# 对我们的a.out文件进行调试
+lldb ./a.out
+# 在main.m文件的第16行设置一个断点
+breakpoint set -f main.m -l 16
+# fork一个进程启动我们的程序
+process launch
+```
+效果如下：
+
+![Mach-O](./Images/MachOSegmentLLDB.png)
+
+从图上看到`lldb`并没有将断点打在第16行，接下来我们向下执行一步：
+```bash
+# xcode 中常用的调试指令
+thread step-in
+```
+效果如下：
+
+![Mach-O](./Images/MachOStepIn.png)
+
+可以看到断点向下走了一个，并且输出了"Hello World!"。接下来使用的就是跟我们在Xcode中使用的调试指令相同了例如`po、di`等，我们先看看header信息里的magic是否为合法的类型：
+```bash
+# 格式化输出
+(lldb) type format add -f hex long
+# 执行函数
+(lldb) expr 
+    const struct mach_header_64 *mh_64 = (const struct mach_header_64 *) _dyld_get_image_header(0);
+    long magic = mh_64->magic;
+    magic;
+# 清除格式化      
+(lldb) type format clear
+```
+执行结果如下：
+
+![Mach-O](./Images/MachOlldbHeader.png)
+
+其值为`MH_MAGIC_64`，为合法的Mach-O格式文件。Load Commands部分是接着Header部分的，上面说过Load Commands中包含了很多的Segment，动态链接器需要根据这些Segments将程序映射进虚拟内存页，那如何确定该Segment是那种类型以及大小呢？每一个Segment都有`cmd`和`cmdSize`属性，用来表示当前是类型和大小：
+```objc
+struct load_command {
+	uint32_t cmd;		/* type of load command */
+	uint32_t cmdsize;	/* total size of command in bytes */
+};
+```
+通过`otool -lv a.out`可以直接获取所有Segment的信息，下面我将通过程序来获取所有的Segment的类型以及大小。
