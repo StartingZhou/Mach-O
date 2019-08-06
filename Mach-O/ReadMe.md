@@ -327,4 +327,31 @@ struct relocation_info
 ```
 otool -rv main.o
 ```
+结果如下：
+![Mach-O-Relocation](./Images/MachOReloc.png "Mach-O Relocations") 
 
+通过结果可以看到，`Adding`类的重定位信息是根据`(__DATA, __objc_classrefs)`生成的，是一个外部符号，`address` 说明与`__objc_classrefs`的Section的偏移量为0，并且`r_symbolnum`的值是`symbol table(符号表)`的索引（执行`otool -r main.o` 可以看到`symbolnum/value`这一列的具体数值，我的为2），我们来看一下：
+
+```
+# 查看节的信息
+otool -s __DATA __objc_classrefs main.o 
+# 查看符号表信息，-p 禁止排序
+nm -mp main.o
+```
+结果如下
+![Mach-O-Symtab](./Images/MachOSecSym.jpg "Mach-O Section and symtable")
+
+可以看到`(__DATA __objc_classrefs)`的Section只有一个数据，根据上面的重定位信息的`address`（偏移量为0）可以判断位于`c8`处，其值为`0000000000000000`，这是符号还没有绑定，符号的信息位于符号表文件中，符号名称为`_OBJC_CLASS_$_Adding`。
+
+至此，我们已经分析了重定位信息与Section和符号表文件的关系，那么我们来看一下`main.o`的汇编代码，看看未进行重定位的符号在汇编中是以什么形式存在的。
+```
+# -t 打印text Section
+# -V 反汇编符号化显示
+# -j 打印响应指令的二进制表示
+otool -tVj main.o
+```
+结果如下：
+![Mach-O-Disassemble](./Images/MachODisa.png "Disassemble")
+
+最左侧的一列代表的是相对地址，第二列表示汇编代码的机器码，最后就是汇编代码。先看一下最左侧位于`0000000000000030`处的汇编代码`movq 0x91(%rip), %rsi`，汇编中通常rip寄存器表示的是即将执行下一条指令的地址，0x91(%rip)表示的是`0x91 + %rip = 0x91 + 0x37 = 0xc8`，这是基于PC的相对寻址技术（`relocation_info r_pcrel = 1`），计算结果是一个指针，地址为`0xc8`就是我们上一步获取`(__DATA __objc_classrefs)`Section中第一个信息的地址。
+从上面的分析可以简单的猜测出，静态链接器其实是根据重定位符号表文件的信息，去修改对应的Section中的对应地址处的值（例如我们的`__DATA __objc_classrefs: 00000000000000c8	00 00 00 00 00 00 00 00 `）对，就是后面那一串0表示的值。当然关于静态链接器本身是十分复杂的，我们只是挑了一个比较简单的来进行讲解，详细可以查看`man ld`的相关文档。
