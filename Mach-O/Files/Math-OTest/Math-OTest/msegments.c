@@ -65,3 +65,89 @@ char * CMDNAME(int cmd) {
     }
     return NULL;
 }
+
+struct load_command* cmds(char *path, bool verbose, int *count) {
+    ssize_t header_size = sizeof(mach_header_p);
+    uint8_t buf_header[header_size];
+    ssize_t position = 0;
+    int fd = open(path, O_RDONLY);
+    if (fd <= 0) {
+        printf("Error occurs when open file %s, errno is %d", path, errno);
+        exit(errno);
+    }
+    while (position < header_size - 1) {
+        ssize_t read_size = read(fd, buf_header + position, header_size - position);
+        if(read_size <= 0) {
+            printf("Error occurs when read file %s, errno is %d", path, errno);
+            exit(errno);
+        }
+        position += read_size;
+    }
+    mach_header_p *header = (mach_header_p *)buf_header;
+    *count = header->ncmds;
+    FILE *file = fdopen(fd, "r");
+    struct load_command *commands = calloc(*count, sizeof(struct load_command));
+    for (uint32_t index = 0; index < *count; index++) {
+        ssize_t command_size = sizeof(struct load_command);
+        uint8_t buf_command[command_size];
+        ssize_t origin_pos = position;
+        while (position - origin_pos < command_size - 1) {
+            ssize_t read_size = fread((void *)buf_command, 1, command_size, file);
+            if(read_size <= 0) {
+                printf("Error occurs when read file %s, errno is %d", path, errno);
+                exit(errno);
+            }
+            position += read_size;
+        }
+        struct load_command *command = (struct load_command *)buf_command;
+        commands[index] = *command;
+        uint32_t cmdsize = command->cmdsize;
+        char *description = CMDNAME(command->cmd);
+        printf("%s\n", description);
+        fseek(file, origin_pos + cmdsize, 0);
+        position = origin_pos + cmdsize;
+    }
+    fclose(file);
+    return commands;
+}
+
+struct segment_command_p *segments(char *path, bool verbose, int *count) {
+    mach_header_p header = mheader(path, false);
+    uint32_t ncmds = header.ncmds;
+    ssize_t size_segment = sizeof(segment_command_p);
+    ssize_t size_command = sizeof(struct load_command);
+    FILE *file = fopen(path, "r");
+    
+    if(file == NULL) {
+        printf("Error occurs when open file %s, errno is %d", path, errno);
+        exit(errno);
+    }
+    if(fseek(file, sizeof(mach_header_p), 0) != 0) {
+        printf("Error occurs when seek file %s, errno is %d", path, errno);
+        exit(errno);
+    }
+    for (int index = 0; index < ncmds; index++) {
+        ssize_t position = 0;
+        uint8_t buf[size_command];
+        while (position < size_command - 1) {
+            ssize_t read_size = fread((void *)buf, 1, size_command, file);
+            position += read_size;
+        }
+        struct load_command *command_current = (struct load_command *)buf;
+        ssize_t cmdsize = command_current->cmdsize;
+        
+        if(command_current->cmd == LC_SEGMENT_64 || command_current->cmd == LC_SEGMENT) {
+            while (position < cmdsize) {
+                ssize_t read_size = fread((void *)buf, 1, size_command, file);
+                position += read_size;
+            }
+            segment_command_p *segment = (segment_command_p *)buf;
+            printf("%s", segment->segname);
+        } else {
+            
+            fseek(file, -size_command + cmdsize, 1);
+        }
+        
+    }
+    return NULL;
+}

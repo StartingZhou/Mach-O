@@ -16,14 +16,14 @@ mach_header_p mheader(const char * path, bool verbose)
     int mach_fd = open(path, O_RDONLY);
     if (mach_fd <= 0) {
         printf("Error no. is %d \n", errno);
-        exit(SIGILL);
+        exit(errno);
     }
     while (position < sizeOfHeader - 1) {
         ssize_t read_no;
         if ((read_no = read(mach_fd, buf + position, sizeOfHeader - position)) <= 0) {
             // 从我们创建的main.o目标文件中读取字节
             printf("Error no. is %d \n", errno);
-            exit(SIGILL);
+            exit(errno);
         }
         position += read_no;
     }

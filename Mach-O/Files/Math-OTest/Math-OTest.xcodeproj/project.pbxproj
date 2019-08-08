@@ -16,6 +16,7 @@
 /* Begin PBXFileReference section */
 		8B1026B422F9A5EC00598E05 /* msegments.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = msegments.h; sourceTree = "<group>"; };
 		8B1026B522F9A5EC00598E05 /* msegments.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = msegments.c; sourceTree = "<group>"; };
+		8B1026DA22FA827300598E05 /* a.out */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.executable"; path = a.out; sourceTree = "<group>"; };
 		8B64741622F31E8000233C9A /* Math-OTest */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "Math-OTest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8B64742022F31EA000233C9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		8B64742222F3BFC400233C9A /* DyldImageHeader.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DyldImageHeader.m; sourceTree = "<group>"; };
@@ -55,6 +56,7 @@
 			isa = PBXGroup;
 			children = (
 				8B64742D22F3C87F00233C9A /* main.o */,
+				8B1026DA22FA827300598E05 /* a.out */,
 				8B64742022F31EA000233C9A /* main.m */,
 				8B64742F22F3E94700233C9A /* mheader.h */,
 				8B64743022F3E94700233C9A /* mheader.c */,
@@ -132,7 +134,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\nscp \"$SRCROOT/Math-OTest/main.o\" \"$BUILT_PRODUCTS_DIR\"\n\n";
+			shellScript = "# Type a script or drag a script file from your workspace to insert its path.\n\nscp \"$SRCROOT/Math-OTest/main.o\" \"$BUILT_PRODUCTS_DIR\"\nscp \"$SRCROOT/Math-OTest/a.out\" \"$BUILT_PRODUCTS_DIR\"\n\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

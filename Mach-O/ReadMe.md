@@ -1,5 +1,5 @@
 # Mach-O 文件浅析
-&emsp;&emsp;Mac和iOS系统的可执行文件被称作是Mach-O格式的文件，一般叫做Mach-O文件，该文件描述了目标文件或可执行程序文件的信息以及各个段的信息、机器码和符号表、重定向信息等，程序在启动前，Unix系统会通过 `fork` 创建一个进程，之后通过 `exec` 调用 `dyld`，`dyld`将可执行文件映射进内存，根据可执行文件的信息加载相应的动态库并绑定地址、调用C++的静态构造函数和OC的 `+load` 方法等，最后执行程序文件的入口函数 `main`，本篇文章只对Mach-O文件的结构做简要分析。
+&emsp;&emsp;Mac和iOS系统的可执行文件被称作是Mach-O格式的文件，一般叫做Mach-O文件，该文件描述了目标文件或可执行程序文件的信息以及各个段的信息、机器码和符号表、重定向信息等，程序在启动前，BSD系统会通过调用`fork` 创建一个进程，之后通过 `execve`将我们的程序文件映射进内存并验证文件格式，之后根据Mach-O文件的Load Commands调用 `dyld`，`dyld`根据可执行文件的信息加载相应的动态库并绑定地址，然后调用程序的入口函数，该函数会设置程序运行时的环境变量、调用C++的静态构造函数并初始化OC运行时环境，最后执行程序文件的入口函数 `main`，本篇文章只对Mach-O文件的结构做简要分析。
 
 ## 生成 Mach-O 文件
 &emsp;&emsp;首先变出一个 Mach-O 文件，最简单的方法就是通过Xcode创建一个控制台项目，根据所选择使用的编程语言默认会带一个main.c或者main.m的文件，但是为了让事情看起来麻烦一点，通过创建一个 OC 文件然后使用 `clang` 编译成 Mach-O文件可能会更有意思一些，我们直接创建一个文件并命名为`main.m`，其中的代码如下：
@@ -242,11 +242,46 @@ for (uint32_t i = 0; i < count; i++) {
 上面的程序打印出所有加载的动态库和我们程序自己的Mach-O Header信息。里面的信息可能会因为操作系统的版本和所使用CPU架构有所不同。
 
 ### 2. Load command
-&emsp;&emsp;接下来我们来看看复杂的Load Command部分，Load command 里面包括了Segment，每个Segment包含了很多的Section。每个Segment和Section都有对应的名字，其中Segment的名字为两条下划线和大写字母(__TEXT)，Section的名字为两条下划线和小写字母(__text)，当`dyld`加载程序时，会将Segment部分映射进虚拟内存，所以Segments是按照虚拟内存页进行对齐的。我们先来看下`main.o`文件的Load Commands，`main.o`只是一个目标文件，还没有进行静态链接，文件的Load Commands比较简单，目标文件只有一个Segment，里面包含了所有的Section。
+&emsp;&emsp;接下来我们来看看复杂的Load Command部分，Load command（LC），包括`LC_SEGMENT`、`LC_SYMTAB 符号表`、`LC_LOAD_DYLIB 动态库信息`、`LC_LOAD_DYLINKER 动态链接器的信息`、`LC_UUID uuid信息`、`LC_MAIN 程序的main函数地址信息`等，每一个LC都有与之对应的数据结构例如：
+```objc
+...
+struct segment_command { /* for 32-bit architectures */
+	uint32_t	cmd;		/* LC_SEGMENT */
+	uint32_t	cmdsize;	/* includes sizeof section structs */
+	char		segname[16];	/* segment name */
+	uint32_t	vmaddr;		/* memory address of this segment */
+	uint32_t	vmsize;		/* memory size of this segment */
+	uint32_t	fileoff;	/* file offset of this segment */
+	uint32_t	filesize;	/* amount to map from the file */
+	vm_prot_t	maxprot;	/* maximum VM protection */
+	vm_prot_t	initprot;	/* initial VM protection */
+	uint32_t	nsects;		/* number of sections in segment */
+	uint32_t	flags;		/* flags */
+};
+struct symtab_command {
+	uint32_t	cmd;		/* LC_SYMTAB */
+	uint32_t	cmdsize;	/* sizeof(struct symtab_command) */
+	uint32_t	symoff;		/* symbol table offset */
+	uint32_t	nsyms;		/* number of symbol table entries */
+	uint32_t	stroff;		/* string table offset */
+	uint32_t	strsize;	/* string table size in bytes */
+};
+...
+```
+LC有一个通用的结构：
+```objc
+struct load_command {
+	uint32_t cmd;		/* type of load command */
+	uint32_t cmdsize;	/* total size of command in bytes */
+};
+```
+这些结构体被定义在`<mach-o/loader.h>`中。
+
+LC_Segment加载指令又被成为段，里面包括很多的Section，每个Segment和Section都有对应的名字，其中Segment的名字为两条下划线和大写字母(__TEXT)，Section的名字为两条下划线和小写字母(__text)，`dyld`会将Segment中指定的内存区域映射进虚拟内存并按照虚拟内存页进行对齐（`pagestuff xxx -arch x86_64 -a`）。我们先来看下`main.o`文件的Load Commands，`main.o`只是一个目标文件，还没有进行静态链接，文件的Load Commands比较简单，目标文件只有一个Segment，里面包含了所有的Section。
 
 ![MachOSegment](./Images/MachOSegment.png "Mach-O Segment")
 
-当我们的目标文件与其它Mach-O文件进行连接时，会将对应的Section放到对应的Segment中，最终形成多个Segment，每个Segment又存在多个Section。
+当我们的目标文件与其它Mach-O文件进行连接时，会将对应的Section放到对应的Segment中（根据Section结构体的flags属性），最终形成多个Segment，每个Segment又存在多个Section。
 
 重新改写我们的 `main.m`文件，并且新增`Adding.h`和`Adding.m`文件。
 ```objc
@@ -283,7 +318,13 @@ xcrun clang -c main.m
 xcurn clang -c Adding.m
 xcrun clang main.o Adding.o -framework Foundation
 ```
-这是会在执行目录下生成`main.o Adding.o a.out`文件，`main.o`和`Adding.o`是目标文件，用于最后的链接，从而生成`a.out`最终的可执行文件。下面先从新生成的`main.o`文件简单聊聊静态链接。
+这是会在执行目录下生成`main.o Adding.o a.out`文件。
+
+![MachO](./Images/MachOSegAll.jpg)
+
+在静态链接之后，不同的LC_SEGMENT被分离开了。
+
+`main.o`和`Adding.o`是目标文件，用于最后的链接，从而生成`a.out`最终的可执行文件。下面先从新生成的`main.o`文件简单聊聊静态链接。
 
 我们通常写代码的时候，需要将不同的功能分散到不同的文件中，例如上面的例子，`main.m`用于输出信息，`Adding.m`提供了两个数相加的功能，这么做一方面利于文件的管理（功能的模块化），一方面利于后期的维护（功能变更时只需要修改对应功能的代码文件），试想一下如果把所有的代码都写到一个文件里，如果多人协作开发的话，一定会涉及到修改和维护某些函数，那么所有开发的人都会修改这一个文件，结果是不可想象的，如果把功能分散到不同的代码文件中，那么负责某一功能的程序员就可以一直维护该文件，其他人需要此功能时，就可以直接导入该文件，效率更高，更利于维护和更新。
 
@@ -403,7 +444,7 @@ thread step-in
 
 ![Mach-O](./Images/MachOStepIn.png)
 
-可以看到断点向下走了一个，并且输出了"Hello World!"。接下来使用的就是跟我们在Xcode中使用的调试指令相同了例如`po、di`等，我们先看看header信息里的magic是否为合法的类型：
+&emsp;&emsp;可以看到断点向下走了一个，并且输出了"Hello World!"。接下来使用的就是跟我们在Xcode中使用的调试指令相同了例如`po、di`等，我们先看看header信息里的magic是否为合法的类型：
 ```bash
 # 格式化输出
 (lldb) type format add -f hex long
@@ -419,11 +460,15 @@ thread step-in
 
 ![Mach-O](./Images/MachOlldbHeader.png)
 
-其值为`MH_MAGIC_64`，为合法的Mach-O格式文件。Load Commands部分是接着Header部分的，上面说过Load Commands中包含了很多的Segment，动态链接器需要根据这些Segments将程序映射进虚拟内存页，那如何确定该Segment是那种类型以及大小呢？每一个Segment都有`cmd`和`cmdSize`属性，用来表示当前是类型和大小：
+&emsp;&emsp;其值为`MH_MAGIC_64`，是合法的Mach-O格式文件。Load Commands部分是接着Header部分的，上面说过Load Commands中包含了很多的Segment、符号表、动态链接信息、和main函数地址信息等，动态链接器需要根据这些Load Commands将程序映射进虚拟内存页，需要根据动态链接信息进行符号地址绑定并找到程序的main函数执行，那如何确定该Segment是那种类型以及大小呢？每一个LC都有`cmd`和`cmdSize`属性，用来表示当前是类型和大小：
 ```objc
 struct load_command {
 	uint32_t cmd;		/* type of load command */
 	uint32_t cmdsize;	/* total size of command in bytes */
 };
+#define	LC_SEGMENT	0x1
+#define	LC_SEGMENT_64	0x19
+
 ```
-通过`otool -lv a.out`可以直接获取所有Segment的信息，下面我将通过程序来获取所有的Segment的类型以及大小。
+&emsp;&emsp;可以根据`load_command`这个结构体确定当前的LC的类型，然后根据对应的结构体`segment_command 或 segment_command_64`做转换，就可以获取到Segment的信息了，
+（通过`otool -lv a.out`可以直接获取所有LoadCommands的信息），下面我将通过程序来获取所有的Segment的大小和名字，以及该Segment下的Section的数量。
