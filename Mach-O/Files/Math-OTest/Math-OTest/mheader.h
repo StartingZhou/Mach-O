@@ -19,9 +19,11 @@
 #ifdef __LP64__
 typedef struct mach_header_64 mach_header_p;
 typedef struct segment_command_64 segment_command_p;
+typedef struct section_64 section_p;
 #else
 typedef struct mach_header mach_header_p;
 typedef struct segment_command segment_command_p;
+typedef struct section section_p;
 #endif
 mach_header_p mheader(const char * path, bool verbose);
 

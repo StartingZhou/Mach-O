@@ -16,7 +16,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "mheader.h"
+struct segment_section {
+    segment_command_p segment;
+    section_p section;
+};
 char * CMDNAME(int cmd);
 struct load_command* cmds(char *path, bool verbose, int *count);
-struct segment_command_p *segments(char *path, bool verbose, int *count);
+void segments(char *path, bool verbose, int *count);
 #endif /* msegments_h */

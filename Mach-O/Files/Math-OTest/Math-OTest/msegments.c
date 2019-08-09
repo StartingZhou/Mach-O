@@ -7,7 +7,8 @@
 //
 
 #include "msegments.h"
-
+void createSection(FILE *file, segment_command_p *scp, section_p **rtnValue);
+void createSegment(FILE *file, struct load_command lcp, segment_command_p **rtnValue, section_p **rtnSection);
 char * CMDNAME(int cmd) {
     switch (cmd) {
         case LC_VERSION_MIN_WATCHOS:            return "LC_VERSION_MIN_WATCHOS";
@@ -111,10 +112,9 @@ struct load_command* cmds(char *path, bool verbose, int *count) {
     return commands;
 }
 
-struct segment_command_p *segments(char *path, bool verbose, int *count) {
+void segments(char *path, bool verbose, int *count) {
     mach_header_p header = mheader(path, false);
     uint32_t ncmds = header.ncmds;
-    ssize_t size_segment = sizeof(segment_command_p);
     ssize_t size_command = sizeof(struct load_command);
     FILE *file = fopen(path, "r");
     
@@ -127,27 +127,55 @@ struct segment_command_p *segments(char *path, bool verbose, int *count) {
         exit(errno);
     }
     for (int index = 0; index < ncmds; index++) {
-        ssize_t position = 0;
-        uint8_t buf[size_command];
-        while (position < size_command - 1) {
-            ssize_t read_size = fread((void *)buf, 1, size_command, file);
-            position += read_size;
+        uint8_t command_buf[size_command];
+        ssize_t read_size = fread((void *)command_buf, size_command, 1, file);
+        if(read_size != 1) {
+            printf("Error occurs when fread in segments, errno is %d", errno);
+            exit(errno);
         }
-        struct load_command *command_current = (struct load_command *)buf;
-        ssize_t cmdsize = command_current->cmdsize;
-        
-        if(command_current->cmd == LC_SEGMENT_64 || command_current->cmd == LC_SEGMENT) {
-            while (position < cmdsize) {
-                ssize_t read_size = fread((void *)buf, 1, size_command, file);
-                position += read_size;
+        struct load_command *command_current = (struct load_command *)command_buf;
+        segment_command_p *segment = NULL; section_p *section = NULL;
+        createSegment(file, *command_current, &segment, &section);
+        if (segment != NULL) {
+            printf("|Segment");
+            printf("\t|name: %s\tnsects: %d\n", segment->segname, segment->nsects);
+        }
+        if(section != NULL) {
+            printf("\t|--> Sections:\n");
+            for (int i = 0; i < segment->nsects; i++) {
+                printf("\t\t name: %s\n", section[i].sectname);
+                ;
             }
-            segment_command_p *segment = (segment_command_p *)buf;
-            printf("%s", segment->segname);
-        } else {
             
-            fseek(file, -size_command + cmdsize, 1);
         }
-        
+        free(segment);
     }
-    return NULL;
+}
+
+void createSegment(FILE *file, struct load_command lcp, segment_command_p **rtnValue, section_p **rtnSection) {
+    if (lcp.cmd == LC_SEGMENT || lcp.cmd == LC_SEGMENT_64) {
+        fseek(file, -sizeof(lcp), 1);
+        *rtnValue = malloc(sizeof(segment_command_p));
+        ssize_t read_size = fread(*rtnValue, sizeof(segment_command_p), 1, file);
+        if(read_size != 1) {
+            printf("Error occurs when fread in createSegment, errno is %d", errno);
+            exit(errno);
+        }
+        createSection(file, *rtnValue, rtnSection);
+    } else {
+        *rtnValue = NULL;
+    }
+}
+
+void createSection(FILE *file, segment_command_p *scp, section_p **rtnValue) {
+    if(scp != NULL && (scp->cmd == LC_SEGMENT_64 || scp->cmd == LC_SEGMENT) && scp->nsects > 0) {
+        *rtnValue = malloc(scp->nsects * sizeof(segment_command_p));
+        size_t read_size = fread(*rtnValue , sizeof(section_p), scp->nsects, file);
+        if(read_size != scp->nsects) {
+            printf("Error occurs when fread in createSection, errno is %d", errno);
+            exit(errno);
+        }
+    } else {
+        *rtnValue = NULL;
+    }
 }
